@@ -143,8 +143,7 @@ button {
 }
 
 .primary-button,
-.ghost-button,
-.panel-title button {
+.ghost-button {
   min-height: 46px;
   border-radius: 8px;
   border: 1px solid transparent;
@@ -158,8 +157,7 @@ button {
   background: var(--blue);
 }
 
-.ghost-button,
-.panel-title button {
+.ghost-button {
   color: var(--navy);
   background: var(--white);
   border-color: var(--line);
@@ -316,10 +314,17 @@ button {
   font-weight: 900;
 }
 
-.panel-title button {
+.panel-title span {
   min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 0 12px;
+  color: var(--navy);
+  background: var(--white);
   font-size: 14px;
+  font-weight: 800;
 }
 
 .form-stack {

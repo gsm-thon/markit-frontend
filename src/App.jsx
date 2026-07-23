@@ -540,7 +540,7 @@ function PanelTitle({ title, action }) {
   return (
     <div className="panel-title">
       <h2>{title}</h2>
-      {action && <button type="button">{action}</button>}
+      {action && <span>{action}</span>}
     </div>
   )
 }
