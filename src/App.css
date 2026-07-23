@@ -157,6 +157,13 @@ button {
   background: var(--blue);
 }
 
+.primary-button:disabled,
+.ghost-button:disabled,
+.nav-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .ghost-button {
   color: var(--navy);
   background: var(--white);
@@ -421,8 +428,7 @@ textarea {
 
 .issue-list,
 .finding-list,
-.faq-grid,
-.monitoring-grid {
+.faq-grid {
   display: grid;
   gap: 14px;
 }
@@ -565,10 +571,6 @@ mark {
   font-weight: 900;
 }
 
-.monitoring-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
 .complete-panel {
   min-height: 540px;
   display: grid;
@@ -635,8 +637,7 @@ mark {
   .screen-grid,
   .review-layout,
   .metric-row,
-  .faq-grid,
-  .monitoring-grid {
+  .faq-grid {
     grid-template-columns: 1fr;
   }
 

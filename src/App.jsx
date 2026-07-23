@@ -7,6 +7,7 @@ const API_BASE_URL =
 
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024
 const ALLOWED_FILE_EXTENSIONS = ['pdf', 'docx', 'hwpx', 'txt', 'png', 'jpg', 'jpeg']
+const SESSION_ERROR_CODES = ['SCAN_NOT_FOUND', 'SCAN_EXPIRED']
 
 const steps = [
   { id: 'home', label: '홈' },
@@ -14,7 +15,6 @@ const steps = [
   { id: 'scan', label: '사전 점검' },
   { id: 'fix', label: '수정 가이드' },
   { id: 'save', label: '저장 완료' },
-  { id: 'monitoring', label: '모니터링' },
 ]
 
 const featureCards = [
@@ -59,16 +59,23 @@ function applyLocalReplacement(finding) {
   if (finding.resolved && typeof finding.replacementText === 'string') {
     return finding.replacementText
   }
-  if (finding.action === 'delete') return ''
-  if (finding.action === 'replace') return finding.suggestion || '[수정 필요]'
-  return '[마스킹]'
+  return finding.originalText
 }
 
 function getSuggestionText(finding) {
   if (!finding) return ''
   if (typeof finding.suggestion === 'string' && finding.suggestion.trim()) return finding.suggestion
   if (finding.action === 'delete') return ''
-  return '[마스킹]'
+  if (finding.action === 'review') return finding.originalText
+  return finding.label || '민감정보'
+}
+
+function getSuggestedActionText(finding) {
+  if (!finding) return ''
+  if (typeof finding.suggestion === 'string' && finding.suggestion.trim()) return finding.suggestion
+  if (finding.action === 'delete') return '삭제 권장'
+  if (finding.action === 'review') return '문맥을 확인한 뒤 직접 수정해 주세요.'
+  return `${finding.label || '민감 문구'} 마스킹`
 }
 
 function renderMarkedText(text, findings, useReplacement = false) {
@@ -118,6 +125,7 @@ function App() {
   const [findings, setFindings] = useState([])
   const [selectedFindingId, setSelectedFindingId] = useState(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [safeFormat, setSafeFormat] = useState('pdf')
@@ -126,6 +134,51 @@ function App() {
     () => findings.find((finding) => finding.findingId === selectedFindingId) ?? findings[0] ?? null,
     [findings, selectedFindingId],
   )
+
+  const hasScanSession = Boolean(scanData?.scanId)
+
+  function resetScanSession(message = '점검 세션이 만료되었습니다. 문서를 다시 분석해 주세요.') {
+    setScanData(null)
+    setFindings([])
+    setSelectedFindingId(null)
+    setActiveStep('upload')
+    setErrorMessage(message)
+  }
+
+  function handleSessionError(payload, fallback) {
+    const message = getErrorMessage(payload, fallback)
+
+    if (SESSION_ERROR_CODES.includes(payload?.error?.code)) {
+      resetScanSession(message || '점검 세션이 만료되었습니다. 문서를 다시 분석해 주세요.')
+      return true
+    }
+
+    return false
+  }
+
+  function applyFindingUpdate(findingId, replacementText, action, resolved = true) {
+    setFindings((items) =>
+      items.map((item) =>
+        item.findingId === findingId
+          ? {
+              ...item,
+              action,
+              replacementText,
+              resolved,
+            }
+          : item,
+      ),
+    )
+  }
+
+  function moveToStep(stepId) {
+    if ((stepId === 'fix' || stepId === 'save') && !hasScanSession) {
+      resetScanSession('문서를 먼저 분석한 뒤 수정하거나 저장할 수 있습니다.')
+      return
+    }
+
+    setActiveStep(stepId)
+  }
 
   async function handleAnalyze(file) {
     if (!file) return
@@ -173,11 +226,13 @@ function App() {
   async function updateFinding(finding, replacementText = getSuggestionText(finding), actionOverride = finding?.action) {
     if (!finding) return
     if (!scanData?.scanId) {
-      setErrorMessage('문서를 먼저 분석해 주세요.')
+      resetScanSession('문서를 먼저 분석한 뒤 수정할 수 있습니다.')
       return
     }
 
+    setIsUpdating(true)
     setErrorMessage('')
+    applyFindingUpdate(finding.findingId, replacementText, actionOverride)
 
     try {
       const response = await fetch(
@@ -195,29 +250,26 @@ function App() {
       const payload = await response.json()
 
       if (!response.ok || !payload.success) {
+        if (SESSION_ERROR_CODES.includes(payload?.error?.code)) return
         throw new Error(getErrorMessage(payload, '수정 반영에 실패했습니다.'))
       }
 
-      setFindings((items) =>
-        items.map((item) =>
-          item.findingId === finding.findingId
-            ? {
-                ...item,
-                action: actionOverride,
-                replacementText: payload.data.replacementText ?? replacementText,
-                resolved: payload.data.resolved ?? true,
-              }
-            : item,
-        ),
+      applyFindingUpdate(
+        finding.findingId,
+        payload.data.replacementText ?? replacementText,
+        actionOverride,
+        payload.data.resolved ?? true,
       )
     } catch (error) {
       setErrorMessage(error.message || '수정 반영에 실패했습니다.')
+    } finally {
+      setIsUpdating(false)
     }
   }
 
   async function downloadSafeCopy() {
     if (!scanData?.scanId) {
-      setErrorMessage('문서를 먼저 분석해 주세요.')
+      resetScanSession('문서를 먼저 분석한 뒤 안전본을 저장할 수 있습니다.')
       return
     }
 
@@ -233,6 +285,7 @@ function App() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
+        if (handleSessionError(payload, '안전 사본 생성에 실패했습니다.')) return
         throw new Error(getErrorMessage(payload, '안전 사본 생성에 실패했습니다.'))
       }
 
@@ -259,6 +312,7 @@ function App() {
       const payload = await response.json().catch(() => null)
 
       if (!response.ok || payload?.success === false) {
+        if (handleSessionError(payload, '작업 삭제에 실패했습니다.')) return
         throw new Error(getErrorMessage(payload, '작업 삭제에 실패했습니다.'))
       }
 
@@ -275,21 +329,27 @@ function App() {
     <main className="app-shell">
       <aside className="sidebar" aria-label="문서 점검 절차">
         <div className="nav-inner">
-          <button className="brand" type="button" onClick={() => setActiveStep('home')}>
+          <button className="brand" type="button" onClick={() => moveToStep('home')}>
             maskit
           </button>
           <nav className="nav-list">
-            {steps.map((step) => (
-              <button
-                key={step.id}
-                className={activeStep === step.id ? 'nav-item active' : 'nav-item'}
-                type="button"
-                onClick={() => setActiveStep(step.id)}
-                title={step.label}
-              >
-                {step.label}
-              </button>
-            ))}
+            {steps.map((step) => {
+              const needsScan = step.id === 'fix' || step.id === 'save'
+              const disabled = needsScan && !hasScanSession
+
+              return (
+                <button
+                  key={step.id}
+                  className={activeStep === step.id ? 'nav-item active' : 'nav-item'}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => moveToStep(step.id)}
+                  title={disabled ? '문서를 먼저 분석해 주세요.' : step.label}
+                >
+                  {step.label}
+                </button>
+              )
+            })}
           </nav>
         </div>
       </aside>
@@ -323,6 +383,7 @@ function App() {
             selectedIssue={selectedIssue}
             setSelectedFindingId={setSelectedFindingId}
             setActiveStep={setActiveStep}
+            isUpdating={isUpdating}
             text={scanData?.extractedText ?? ''}
             updateFinding={updateFinding}
           />
@@ -337,7 +398,6 @@ function App() {
             scanData={scanData}
           />
         )}
-        {activeStep === 'monitoring' && <MonitoringScreen />}
       </section>
     </main>
   )
@@ -493,7 +553,15 @@ function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
   )
 }
 
-function FixScreen({ findings, selectedIssue, setActiveStep, setSelectedFindingId, text, updateFinding }) {
+function FixScreen({
+  findings,
+  isUpdating,
+  selectedIssue,
+  setActiveStep,
+  setSelectedFindingId,
+  text,
+  updateFinding,
+}) {
   if (!selectedIssue) {
     return (
       <section className="complete-panel">
@@ -510,9 +578,6 @@ function FixScreen({ findings, selectedIssue, setActiveStep, setSelectedFindingI
     <div className="review-layout">
       <section className="document-viewer" aria-label="문서 수정 미리보기">
         <div className="viewer-toolbar">
-          <button className="primary-button" type="button" onClick={() => updateFinding(selectedIssue)}>
-            수정 반영
-          </button>
           <button className="ghost-button" type="button" onClick={() => setActiveStep('save')}>
             안전본 저장
           </button>
@@ -521,7 +586,7 @@ function FixScreen({ findings, selectedIssue, setActiveStep, setSelectedFindingI
           <h2>수정본 미리보기</h2>
           {renderMarkedText(text, findings, true)}
           <p className="rewrite">
-            추천 조치: {selectedIssue.suggestion || '문맥을 확인한 뒤 직접 수정해 주세요.'}
+            추천 조치: {getSuggestedActionText(selectedIssue)}
           </p>
         </article>
       </section>
@@ -544,10 +609,11 @@ function FixScreen({ findings, selectedIssue, setActiveStep, setSelectedFindingI
         </div>
         <div className="decision-panel">
           <span className="status-pill danger">{selectedIssue.label}</span>
-          <h2>{selectedIssue.suggestion || '직접 검토 필요'}</h2>
+          <h2>{getSuggestedActionText(selectedIssue)}</h2>
           <p>{selectedIssue.reason}</p>
           <ReplacementEditor
             key={selectedIssue.findingId}
+            isUpdating={isUpdating}
             selectedIssue={selectedIssue}
             updateFinding={updateFinding}
           />
@@ -557,7 +623,7 @@ function FixScreen({ findings, selectedIssue, setActiveStep, setSelectedFindingI
   )
 }
 
-function ReplacementEditor({ selectedIssue, updateFinding }) {
+function ReplacementEditor({ isUpdating, selectedIssue, updateFinding }) {
   const [customText, setCustomText] = useState(selectedIssue.replacementText ?? getSuggestionText(selectedIssue))
 
   return (
@@ -573,83 +639,31 @@ function ReplacementEditor({ selectedIssue, updateFinding }) {
       </label>
       <div className="button-row compact">
         <button
+          className="ghost-button"
+          type="button"
+          disabled={isUpdating}
+          onClick={() => updateFinding(selectedIssue, customText, customText ? 'replace' : 'delete')}
+        >
+          추천안 반영
+        </button>
+        <button
           className="primary-button"
           type="button"
-          onClick={() => updateFinding(selectedIssue, getSuggestionText(selectedIssue))}
+          disabled={isUpdating}
+          onClick={() => updateFinding(selectedIssue, customText, 'replace')}
         >
-          수정 반영
+          {isUpdating ? '반영 중...' : '수정 반영'}
         </button>
         <button
           className="ghost-button"
           type="button"
-          onClick={() => updateFinding(selectedIssue, customText, 'replace')}
+          disabled={isUpdating}
+          onClick={() => updateFinding(selectedIssue, '', 'delete')}
         >
-          직접 수정 반영
-        </button>
-        <button className="ghost-button" type="button" onClick={() => updateFinding(selectedIssue, '', 'delete')}>
           삭제로 반영
         </button>
       </div>
     </>
-  )
-}
-
-function MonitoringScreen() {
-  return (
-    <div className="screen-grid">
-      <section className="wide-panel full-span">
-        <PanelTitle title="모니터링" action="정적 콘텐츠" />
-        <div className="monitoring-grid">
-          <article className="metric-card">
-            <span>원본 보관</span>
-            <strong>24h</strong>
-            <small>만료 후 자동 삭제 권장</small>
-          </article>
-          <article className="metric-card">
-            <span>업로드 제한</span>
-            <strong>20MB</strong>
-            <small>프론트 사전 검증 적용</small>
-          </article>
-          <article className="metric-card">
-            <span>안전 사본</span>
-            <strong>Stream</strong>
-            <small>서버 파일 저장 없이 다운로드</small>
-          </article>
-        </div>
-      </section>
-
-      <section className="wide-panel">
-        <PanelTitle title="점검 기준" />
-        <div className="issue-list">
-          <article className="issue-card">
-            <span>개인정보 보호</span>
-            <strong>연락처, 이메일, 식별번호</strong>
-            <p>개인 식별 가능성이 있는 문구를 탐지하고 마스킹 또는 대체를 권장합니다.</p>
-          </article>
-          <article className="issue-card">
-            <span>블라인드 채용</span>
-            <strong>학교명, 출신지, 가족관계</strong>
-            <p>평가 편향을 만들 수 있는 표현을 발견하면 대체 문구를 제안합니다.</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="wide-panel">
-        <PanelTitle title="API 상태 기준" />
-        <div className="issue-list">
-          <article className="issue-card">
-            <span>동기 분석</span>
-            <strong>POST /api/v1/scans</strong>
-            <p>상태 폴링 없이 업로드 응답에서 결과와 원문 텍스트를 함께 받습니다.</p>
-          </article>
-          <article className="issue-card">
-            <span>작업 삭제</span>
-            <strong>DELETE /api/v1/scans/:scanId</strong>
-            <p>사용자가 원할 때 원본과 분석 결과 삭제를 즉시 요청합니다.</p>
-          </article>
-        </div>
-      </section>
-    </div>
   )
 }
 
