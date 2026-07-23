@@ -3,7 +3,7 @@ import './App.css'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ??
-  'http://gsm-yj-alb-1671676139.us-west-1.elb.amazonaws.com/api/v1'
+  '/api/v1'
 
 const steps = [
   { id: 'home', label: '홈' },

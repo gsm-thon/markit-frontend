@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "http://gsm-yj-alb-1671676139.us-west-1.elb.amazonaws.com/api/v1/:path*"
+    }
+  ]
+}
