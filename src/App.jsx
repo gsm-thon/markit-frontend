@@ -110,6 +110,33 @@ function renderMarkedText(text, findings, useReplacement = false) {
   return <p>{nodes}</p>
 }
 
+function buildSafeText(text, findings) {
+  if (!text) return ''
+
+  const validFindings = [...findings]
+    .filter((finding) => Number.isInteger(finding.startOffset) && Number.isInteger(finding.endOffset))
+    .filter((finding) => finding.startOffset >= 0 && finding.endOffset > finding.startOffset)
+    .sort((a, b) => a.startOffset - b.startOffset)
+
+  if (!validFindings.length) return text
+
+  const chunks = []
+  let cursor = 0
+
+  validFindings.forEach((finding) => {
+    if (finding.startOffset < cursor) return
+    if (cursor < finding.startOffset) {
+      chunks.push(text.slice(cursor, finding.startOffset))
+    }
+
+    chunks.push(applyLocalReplacement(finding))
+    cursor = finding.endOffset
+  })
+
+  if (cursor < text.length) chunks.push(text.slice(cursor))
+  return chunks.join('')
+}
+
 function paginateItems(items, page, pageSize) {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
   const safePage = Math.min(Math.max(page, 1), totalPages)
@@ -312,6 +339,15 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ format: safeFormat }),
       })
+
+      if (response.status === 404) {
+        const blob = new Blob([buildSafeText(scanData.extractedText ?? '', findings)], {
+          type: 'text/plain;charset=utf-8',
+        })
+        downloadBlob(blob, 'maskit-safe-copy.txt')
+        setErrorMessage('서버 저장 API를 찾을 수 없어 TXT 안전본으로 저장했습니다.')
+        return
+      }
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
