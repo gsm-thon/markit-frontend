@@ -6,7 +6,7 @@ const API_BASE_URL =
   '/api/v1'
 
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024
-const ALLOWED_FILE_EXTENSIONS = ['pdf', 'docx', 'hwpx', 'txt', 'png', 'jpg', 'jpeg']
+const ALLOWED_FILE_EXTENSIONS = ['pdf', 'docx', 'txt']
 const SESSION_ERROR_CODES = ['SCAN_NOT_FOUND', 'SCAN_EXPIRED']
 const SCAN_PAGE_SIZE = 4
 const FIX_PAGE_SIZE = 5
@@ -33,7 +33,7 @@ function validateUploadFile(file) {
   const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
 
   if (!ALLOWED_FILE_EXTENSIONS.includes(extension)) {
-    return '지원하지 않는 파일 형식입니다. PDF, DOCX, HWPX, TXT, PNG, JPG 파일을 업로드해 주세요.'
+    return '지원하지 않는 파일 형식입니다. PDF, DOCX, TXT 파일을 업로드해 주세요.'
   }
 
   if (file.size > MAX_UPLOAD_SIZE) {
@@ -477,12 +477,12 @@ function UploadScreen({
         <div className="dropzone">
           <span className="drop-icon">+</span>
           <h2>점검할 글 불러오기</h2>
-          <p>PDF, DOCX, HWPX, TXT, PNG, JPG 파일을 올릴 수 있습니다.</p>
+          <p>PDF, DOCX, TXT 파일을 올릴 수 있습니다.</p>
           <input
             ref={fileInputRef}
             className="file-input"
             type="file"
-            accept=".pdf,.docx,.hwpx,.txt,.png,.jpg,.jpeg"
+            accept=".pdf,.docx,.txt"
             onChange={(event) => {
               onAnalyze(event.target.files?.[0])
               event.target.value = ''
