@@ -447,6 +447,13 @@ textarea {
   padding: 18px;
 }
 
+.issue-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .issue-card span,
 .finding span {
   color: var(--blue);
@@ -459,7 +466,12 @@ textarea {
   color: var(--navy);
 }
 
-.issue-card em,
+.issue-card small {
+  color: var(--gray);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .status-pill {
   width: fit-content;
   border-radius: 999px;
@@ -473,6 +485,19 @@ textarea {
 
 .status-pill.danger {
   background: var(--blue);
+}
+
+.status-pill.warning {
+  color: var(--navy);
+  background: #f4d35e;
+}
+
+.status-pill.masked-status {
+  background: var(--blue);
+}
+
+.status-pill.resolved {
+  background: #2f9e44;
 }
 
 .document-viewer {

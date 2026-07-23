@@ -70,6 +70,23 @@ function getSuggestedActionText(finding) {
   return `${finding.label || '민감 문구'} 마스킹`
 }
 
+function getFindingStatusText(finding) {
+  if (finding?.resolved) return '수정 반영됨'
+  if (finding?.action === 'review') return '직접 확인'
+  if (finding?.action === 'mask') return '저장 시 가림'
+  if (finding?.action === 'replace' || finding?.action === 'delete') return '수정 필요'
+  return '확인 필요'
+}
+
+function getFindingStatusClass(finding) {
+  if (finding?.resolved) return 'status-pill resolved'
+  if (finding?.action === 'review' || finding?.action === 'replace' || finding?.action === 'delete') {
+    return 'status-pill warning'
+  }
+  if (finding?.action === 'mask') return 'status-pill masked-status'
+  return 'status-pill'
+}
+
 function renderMarkedText(text, findings, useReplacement = false) {
   if (!text) return <p className="empty-text">분석된 텍스트가 아직 없습니다.</p>
 
@@ -571,10 +588,13 @@ function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
         <div className="issue-list paginated-list">
           {visibleFindings.map((issue) => (
             <article className="issue-card" key={issue.findingId}>
-              <span>{issue.label}</span>
+              <div className="issue-card-header">
+                <span>{issue.label}</span>
+                <em className={getFindingStatusClass(issue)}>{getFindingStatusText(issue)}</em>
+              </div>
               <strong>{issue.originalText}</strong>
               <p>{issue.reason}</p>
-              <em>{issue.resolved ? '반영 완료' : severityLabel(issue.severity)}</em>
+              <small>{severityLabel(issue.severity)}</small>
             </article>
           ))}
         </div>
@@ -667,7 +687,7 @@ function FixScreen({
             >
               <span>{issue.label}</span>
               <strong>{issue.originalText}</strong>
-              <small>{issue.resolved ? '반영 완료' : severityLabel(issue.severity)}</small>
+              <small>{getFindingStatusText(issue)} · {severityLabel(issue.severity)}</small>
             </button>
           ))}
         </div>
