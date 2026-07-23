@@ -43,16 +43,6 @@ function validateUploadFile(file) {
   return ''
 }
 
-function getDownloadFilename(response, fallback) {
-  const disposition = response.headers.get('Content-Disposition')
-  const encodedMatch = disposition?.match(/filename\*=UTF-8''([^;]+)/i)
-  const plainMatch = disposition?.match(/filename="?([^";]+)"?/i)
-
-  if (encodedMatch?.[1]) return decodeURIComponent(encodedMatch[1])
-  if (plainMatch?.[1]) return plainMatch[1]
-  return fallback
-}
-
 function modeLabel(mode) {
   return mode === 'blind_hiring' ? '블라인드 채용' : '개인정보 보안'
 }
@@ -174,6 +164,11 @@ function downloadBlob(blob, filename) {
   }, 0)
 }
 
+function getSafeCopyFilename(fileName = '') {
+  const baseName = fileName.replace(/\.[^/.]+$/, '').trim() || 'maskit-safe-copy'
+  return `${baseName}-safe-copy.txt`
+}
+
 function App() {
   const [activeStep, setActiveStep] = useState('home')
   const [scanMode, setScanMode] = useState('privacy')
@@ -185,7 +180,6 @@ function App() {
   const [isUpdating, setIsUpdating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-  const [safeFormat, setSafeFormat] = useState('pdf')
 
   const selectedIssue = useMemo(
     () => findings.find((finding) => finding.findingId === selectedFindingId) ?? findings[0] ?? null,
@@ -334,32 +328,10 @@ function App() {
     setErrorMessage('')
 
     try {
-      const response = await fetch(`${API_BASE_URL}/scans/${scanData.scanId}/safe-copy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format: safeFormat }),
+      const blob = new Blob([buildSafeText(scanData.extractedText ?? '', findings)], {
+        type: 'text/plain;charset=utf-8',
       })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        if (response.status === 404) {
-          const blob = new Blob([buildSafeText(scanData.extractedText ?? '', findings)], {
-            type: 'text/plain;charset=utf-8',
-          })
-          downloadBlob(blob, 'maskit-safe-copy.txt')
-          setErrorMessage(
-            payload?.error?.code === 'SCAN_NOT_FOUND'
-              ? '서버가 점검 세션을 찾지 못해 TXT 안전본으로 저장했습니다.'
-              : '서버 저장 API를 찾을 수 없어 TXT 안전본으로 저장했습니다.',
-          )
-          return
-        }
-        if (handleSessionError(payload, '안전 사본 생성에 실패했습니다.')) return
-        throw new Error(getErrorMessage(payload, '안전 사본 생성에 실패했습니다.'))
-      }
-
-      const blob = await response.blob()
-      downloadBlob(blob, getDownloadFilename(response, `maskit-safe-copy.${safeFormat}`))
+      downloadBlob(blob, getSafeCopyFilename(scanData.fileName))
     } catch (error) {
       setErrorMessage(error.message || '안전 사본 생성에 실패했습니다.')
     } finally {
@@ -462,8 +434,6 @@ function App() {
             deleteScan={deleteScan}
             downloadSafeCopy={downloadSafeCopy}
             isSaving={isSaving}
-            safeFormat={safeFormat}
-            setSafeFormat={setSafeFormat}
             scanData={scanData}
           />
         )}
@@ -805,23 +775,15 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
   )
 }
 
-function SaveScreen({ deleteScan, downloadSafeCopy, isSaving, safeFormat, setSafeFormat, scanData }) {
+function SaveScreen({ deleteScan, downloadSafeCopy, isSaving, scanData }) {
   return (
     <section className="complete-panel">
       <span className="complete-mark">OK</span>
       <h2>안전본을 내 컴퓨터에 저장할 준비가 끝났습니다.</h2>
       <p>
-        마스킹된 안전본은 서버에 별도 파일로 저장하지 않고 즉시 다운로드됩니다.
+        마스킹된 안전본은 브라우저에서 TXT 파일로 즉시 다운로드됩니다.
         저장 후에는 사용자가 원하는 채용 사이트나 이메일에 직접 업로드할 수 있습니다.
       </p>
-      <label className="format-picker">
-        저장 형식
-        <select value={safeFormat} onChange={(event) => setSafeFormat(event.target.value)}>
-          <option value="pdf">PDF</option>
-          <option value="docx">DOCX</option>
-          <option value="txt">TXT</option>
-        </select>
-      </label>
       <div className="button-row">
         <button className="primary-button" type="button" disabled={isSaving} onClick={downloadSafeCopy}>
           {isSaving ? '저장 중...' : '내 컴퓨터에 저장'}
