@@ -8,6 +8,8 @@ const API_BASE_URL =
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024
 const ALLOWED_FILE_EXTENSIONS = ['pdf', 'docx', 'hwpx', 'txt', 'png', 'jpg', 'jpeg']
 const SESSION_ERROR_CODES = ['SCAN_NOT_FOUND', 'SCAN_EXPIRED']
+const SCAN_PAGE_SIZE = 4
+const FIX_PAGE_SIZE = 5
 
 const steps = [
   { id: 'home', label: '홈' },
@@ -106,6 +108,28 @@ function renderMarkedText(text, findings, useReplacement = false) {
 
   if (cursor < text.length) nodes.push(text.slice(cursor))
   return <p>{nodes}</p>
+}
+
+function paginateItems(items, page, pageSize) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
+  const safePage = Math.min(Math.max(page, 1), totalPages)
+  const start = (safePage - 1) * pageSize
+
+  return {
+    currentPage: safePage,
+    pageItems: items.slice(start, start + pageSize),
+    totalPages,
+  }
+}
+
+function getVisiblePages(currentPage, totalPages) {
+  if (totalPages <= 5) return Array.from({ length: totalPages }, (_, index) => index + 1)
+
+  const pages = new Set([1, totalPages, currentPage])
+  if (currentPage > 2) pages.add(currentPage - 1)
+  if (currentPage < totalPages - 1) pages.add(currentPage + 1)
+
+  return [...pages].sort((a, b) => a - b)
 }
 
 function downloadBlob(blob, filename) {
@@ -499,6 +523,13 @@ function UploadScreen({
 }
 
 function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
+  const [issuePage, setIssuePage] = useState(1)
+  const {
+    currentPage: currentIssuePage,
+    pageItems: visibleFindings,
+    totalPages: issueTotalPages,
+  } = paginateItems(findings, issuePage, SCAN_PAGE_SIZE)
+
   if (!scanData) {
     return (
       <section className="complete-panel">
@@ -525,8 +556,8 @@ function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
 
       <section className="wide-panel">
         <PanelTitle title="발견된 항목" />
-        <div className="issue-list">
-          {findings.map((issue) => (
+        <div className="issue-list paginated-list">
+          {visibleFindings.map((issue) => (
             <article className="issue-card" key={issue.findingId}>
               <span>{issue.label}</span>
               <strong>{issue.originalText}</strong>
@@ -535,6 +566,11 @@ function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
             </article>
           ))}
         </div>
+        <Pagination
+          currentPage={currentIssuePage}
+          totalPages={issueTotalPages}
+          onPageChange={setIssuePage}
+        />
         <div className="button-row panel-actions">
           <button className="primary-button" type="button" onClick={() => setActiveStep('fix')}>
             수정 가이드 보기
@@ -562,6 +598,22 @@ function FixScreen({
   text,
   updateFinding,
 }) {
+  const [findingPage, setFindingPage] = useState(1)
+  const {
+    currentPage: currentFindingPage,
+    pageItems: visibleFindings,
+    totalPages: findingTotalPages,
+  } = paginateItems(findings, findingPage, FIX_PAGE_SIZE)
+
+  function handleFindingPageChange(page) {
+    const { pageItems } = paginateItems(findings, page, FIX_PAGE_SIZE)
+    setFindingPage(page)
+
+    if (pageItems[0]) {
+      setSelectedFindingId(pageItems[0].findingId)
+    }
+  }
+
   if (!selectedIssue) {
     return (
       <section className="complete-panel">
@@ -593,8 +645,8 @@ function FixScreen({
 
       <aside className="review-panel">
         <PanelTitle title="수정할 항목" />
-        <div className="finding-list">
-          {findings.map((issue) => (
+        <div className="finding-list paginated-list">
+          {visibleFindings.map((issue) => (
             <button
               key={issue.findingId}
               className={selectedIssue.findingId === issue.findingId ? 'finding selected' : 'finding'}
@@ -607,6 +659,11 @@ function FixScreen({
             </button>
           ))}
         </div>
+        <Pagination
+          currentPage={currentFindingPage}
+          totalPages={findingTotalPages}
+          onPageChange={handleFindingPageChange}
+        />
         <div className="decision-panel">
           <span className="status-pill danger">{selectedIssue.label}</span>
           <h2>{getSuggestedActionText(selectedIssue)}</h2>
@@ -664,6 +721,50 @@ function ReplacementEditor({ isUpdating, selectedIssue, updateFinding }) {
         </button>
       </div>
     </>
+  )
+}
+
+function Pagination({ currentPage, totalPages, onPageChange }) {
+  if (totalPages <= 1) return null
+
+  const pages = getVisiblePages(currentPage, totalPages)
+
+  return (
+    <div className="pagination" aria-label="목록 페이지">
+      <button
+        className="page-button"
+        type="button"
+        disabled={currentPage === 1}
+        onClick={() => onPageChange(currentPage - 1)}
+      >
+        이전
+      </button>
+      {pages.map((page, index) => {
+        const previousPage = pages[index - 1]
+        const hasGap = previousPage && page - previousPage > 1
+
+        return (
+          <span className="page-group" key={page}>
+            {hasGap && <span className="page-ellipsis">...</span>}
+            <button
+              className={currentPage === page ? 'page-number active' : 'page-number'}
+              type="button"
+              onClick={() => onPageChange(page)}
+            >
+              {page}
+            </button>
+          </span>
+        )
+      })}
+      <button
+        className="page-button"
+        type="button"
+        disabled={currentPage === totalPages}
+        onClick={() => onPageChange(currentPage + 1)}
+      >
+        다음
+      </button>
+    </div>
   )
 }
 

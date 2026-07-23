@@ -433,6 +433,10 @@ textarea {
   gap: 14px;
 }
 
+.paginated-list {
+  align-content: start;
+}
+
 .issue-card {
   display: grid;
   gap: 8px;
@@ -549,6 +553,50 @@ mark {
 .finding.selected {
   border-color: var(--blue);
   background: rgba(78, 98, 226, 0.08);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.page-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-button,
+.page-number {
+  min-width: 38px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--navy);
+  background: var(--white);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.page-number.active {
+  color: var(--white);
+  border-color: var(--blue);
+  background: var(--blue);
+}
+
+.page-button:disabled,
+.page-number:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.page-ellipsis {
+  color: var(--gray);
+  font-weight: 900;
 }
 
 .decision-panel {
