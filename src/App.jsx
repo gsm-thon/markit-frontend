@@ -340,17 +340,20 @@ function App() {
         body: JSON.stringify({ format: safeFormat }),
       })
 
-      if (response.status === 404) {
-        const blob = new Blob([buildSafeText(scanData.extractedText ?? '', findings)], {
-          type: 'text/plain;charset=utf-8',
-        })
-        downloadBlob(blob, 'maskit-safe-copy.txt')
-        setErrorMessage('서버 저장 API를 찾을 수 없어 TXT 안전본으로 저장했습니다.')
-        return
-      }
-
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
+        if (response.status === 404) {
+          const blob = new Blob([buildSafeText(scanData.extractedText ?? '', findings)], {
+            type: 'text/plain;charset=utf-8',
+          })
+          downloadBlob(blob, 'maskit-safe-copy.txt')
+          setErrorMessage(
+            payload?.error?.code === 'SCAN_NOT_FOUND'
+              ? '서버가 점검 세션을 찾지 못해 TXT 안전본으로 저장했습니다.'
+              : '서버 저장 API를 찾을 수 없어 TXT 안전본으로 저장했습니다.',
+          )
+          return
+        }
         if (handleSessionError(payload, '안전 사본 생성에 실패했습니다.')) return
         throw new Error(getErrorMessage(payload, '안전 사본 생성에 실패했습니다.'))
       }
