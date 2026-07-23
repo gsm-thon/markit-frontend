@@ -1,6 +1,9 @@
+export const DEPLOYED_BACKEND_URL = 'http://gsm-yj-alb-1671676139.us-west-1.elb.amazonaws.com'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
 export const API_ENDPOINTS = {
+  health: '/health',
   createScan: '/api/v1/scans',
   updateFinding: '/api/v1/scans/{scanId}/findings/{findingId}',
   createSafeCopy: '/api/v1/scans/{scanId}/safe-copy',
@@ -19,6 +22,20 @@ export async function createScan({ file, mode, consent }) {
   })
 
   return payload.data
+}
+
+export async function checkHealth() {
+  const response = await fetch(resolveHealthUrl(), {
+    method: 'GET',
+  })
+
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw Object.assign(new Error(payload?.error?.message || 'Health check failed'), { payload })
+  }
+
+  return payload
 }
 
 export async function updateFinding(scanId, findingId, body) {
@@ -105,4 +122,12 @@ function delay(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
+}
+
+function resolveHealthUrl() {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL.replace(/\/api\/v1\/?$/, '/health')
+  }
+
+  return '/health'
 }

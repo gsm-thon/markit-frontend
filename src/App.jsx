@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import {
   API_ENDPOINTS,
+  DEPLOYED_BACKEND_URL,
   createSafeCopy,
   createScan,
   deleteScanSession,
@@ -21,12 +22,11 @@ const safeFormats = [
 ]
 
 const apiStatus = [
-  ['사용 중', 'POST', API_ENDPOINTS.createScan, '파일 업로드와 즉시 분석'],
-  ['사용 중', 'PATCH', API_ENDPOINTS.updateFinding, '탐지 항목 수정 반영'],
-  ['사용 중', 'POST', API_ENDPOINTS.createSafeCopy, '마스킹 사본 다운로드'],
-  ['사용 중', 'DELETE', API_ENDPOINTS.deleteScan, '원본 및 분석 세션 삭제'],
-  ['제거됨', 'GET', '/api/v1/scans/{scanId}', '서버에 없는 결과 조회 API'],
-  ['제거됨', 'POST', '/api/v1/scans/{scanId}/preview', '서버에 없는 미리보기 API'],
+  ['연결', 'GET', API_ENDPOINTS.health, '서버 상태 확인'],
+  ['연결', 'POST', API_ENDPOINTS.createScan, '파일 업로드, 텍스트 추출, AI 탐지'],
+  ['연결', 'PATCH', API_ENDPOINTS.updateFinding, '특정 탐지 항목의 처리 방식 저장'],
+  ['연결', 'POST', API_ENDPOINTS.createSafeCopy, '승인된 항목을 반영한 안전 사본 다운로드'],
+  ['연결', 'DELETE', API_ENDPOINTS.deleteScan, '세션과 원문, 분석 결과 삭제'],
 ]
 
 function App() {
@@ -206,14 +206,14 @@ function App() {
           <div className="section-title">
             <span>2</span>
             <div>
-              <h2>API 정합성</h2>
-              <p>서버 레포 기준으로 현재 프론트에 남긴 API와 제거한 API입니다.</p>
+              <h2>API 연결</h2>
+              <p>배포 백엔드: {DEPLOYED_BACKEND_URL}</p>
             </div>
           </div>
           <div className="api-list">
             {apiStatus.map(([status, method, path, description]) => (
               <article className="api-row" key={`${method}-${path}`}>
-                <span className={status === '사용 중' ? 'status ok' : 'status removed'}>{status}</span>
+                <span className="status ok">{status}</span>
                 <strong>{method}</strong>
                 <code>{path}</code>
                 <p>{description}</p>
