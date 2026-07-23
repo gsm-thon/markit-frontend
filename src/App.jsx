@@ -410,7 +410,7 @@ function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
       </section>
 
       <section className="wide-panel">
-        <PanelTitle title="발견된 항목" action="수정 가이드 열기" />
+        <PanelTitle title="발견된 항목" />
         <div className="issue-list">
           {findings.map((issue) => (
             <article className="issue-card" key={issue.findingId}>
