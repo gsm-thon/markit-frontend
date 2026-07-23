@@ -550,7 +550,7 @@ function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
           <Metric label="수정 필요" value={`${summary?.needsFix ?? 0}건`} delta="확인 필요 항목" />
           <Metric label="자동 마스킹" value={`${summary?.autoMasked ?? 0}건`} delta="연락처, 이메일 등" />
           <Metric label="통과 항목" value={`${summary?.passed ?? 0}건`} delta="문제 없음" />
-          <Metric label="탐지 항목" value={`${findings.length}건`} delta={scanData.fileName} />
+          <Metric label="탐지 항목" value={`${findings.length}건`} delta="전체 탐지된 항목" />
         </div>
       </section>
 

@@ -420,6 +420,10 @@ textarea {
   font-weight: 700;
 }
 
+.metric-card small {
+  overflow-wrap: anywhere;
+}
+
 .metric-card strong {
   color: var(--navy);
   font-size: 34px;
