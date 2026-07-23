@@ -527,9 +527,6 @@ function UploadScreen({
               <input checked={agreed} onChange={(event) => setAgreed(event.target.checked)} type="checkbox" />
               민감정보 사전 점검 및 안전본 생성에 동의합니다.
             </label>
-            <p className="helper-text">
-              서버 API: <code>POST /api/v1/scans</code>
-            </p>
           </div>
         </div>
       </section>
