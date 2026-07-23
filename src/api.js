@@ -22,21 +22,21 @@ export async function createScan({ file, mode, consent }) {
 }
 
 export async function updateFinding(scanId, findingId, body) {
-  const payload = await requestSessionJson(`${API_BASE_URL}/scans/${scanId}/findings/${findingId}`, () => ({
+  const payload = await requestJson(`${API_BASE_URL}/scans/${scanId}/findings/${findingId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  }))
+  })
 
   return payload.data
 }
 
 export async function createSafeCopy(scanId, format) {
-  const response = await requestSessionResponse(`${API_BASE_URL}/scans/${scanId}/safe-copy`, () => ({
+  const response = await fetch(`${API_BASE_URL}/scans/${scanId}/safe-copy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ format }),
-  }))
+  })
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null)
@@ -47,9 +47,9 @@ export async function createSafeCopy(scanId, format) {
 }
 
 export async function deleteScanSession(scanId) {
-  const payload = await requestSessionJson(`${API_BASE_URL}/scans/${scanId}`, () => ({
+  const payload = await requestJson(`${API_BASE_URL}/scans/${scanId}`, {
     method: 'DELETE',
-  }))
+  })
 
   return payload.data
 }
@@ -67,42 +67,4 @@ async function requestJson(url, options) {
   }
 
   return payload
-}
-
-async function requestSessionJson(url, createOptions) {
-  const response = await requestSessionResponse(url, createOptions)
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok || !payload?.success) {
-    throw Object.assign(new Error(payload?.error?.message || 'Request failed'), { payload })
-  }
-
-  return payload
-}
-
-async function requestSessionResponse(url, createOptions) {
-  let lastResponse = null
-
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const response = await fetch(url, createOptions())
-
-    if (!shouldRetrySessionRequest(response)) {
-      return response
-    }
-
-    lastResponse = response
-    await delay(160 + attempt * 120)
-  }
-
-  return lastResponse
-}
-
-function shouldRetrySessionRequest(response) {
-  return response.status === 404 || response.status === 410
-}
-
-function delay(ms) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
 }
