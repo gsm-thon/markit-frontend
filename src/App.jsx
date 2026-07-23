@@ -5,12 +5,16 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ??
   '/api/v1'
 
+const MAX_UPLOAD_SIZE = 20 * 1024 * 1024
+const ALLOWED_FILE_EXTENSIONS = ['pdf', 'docx', 'hwpx', 'txt', 'png', 'jpg', 'jpeg']
+
 const steps = [
   { id: 'home', label: '홈' },
   { id: 'upload', label: '문서 분석' },
   { id: 'scan', label: '사전 점검' },
   { id: 'fix', label: '수정 가이드' },
   { id: 'save', label: '저장 완료' },
+  { id: 'monitoring', label: '모니터링' },
 ]
 
 const featureCards = [
@@ -21,6 +25,30 @@ const featureCards = [
 
 function getErrorMessage(payload, fallback) {
   return payload?.error?.message || fallback
+}
+
+function validateUploadFile(file) {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+
+  if (!ALLOWED_FILE_EXTENSIONS.includes(extension)) {
+    return '지원하지 않는 파일 형식입니다. PDF, DOCX, HWPX, TXT, PNG, JPG 파일을 업로드해 주세요.'
+  }
+
+  if (file.size > MAX_UPLOAD_SIZE) {
+    return '파일 용량이 20MB를 초과했습니다.'
+  }
+
+  return ''
+}
+
+function getDownloadFilename(response, fallback) {
+  const disposition = response.headers.get('Content-Disposition')
+  const encodedMatch = disposition?.match(/filename\*=UTF-8''([^;]+)/i)
+  const plainMatch = disposition?.match(/filename="?([^";]+)"?/i)
+
+  if (encodedMatch?.[1]) return decodeURIComponent(encodedMatch[1])
+  if (plainMatch?.[1]) return plainMatch[1]
+  return fallback
 }
 
 function modeLabel(mode) {
@@ -106,6 +134,12 @@ function App() {
       return
     }
 
+    const fileError = validateUploadFile(file)
+    if (fileError) {
+      setErrorMessage(fileError)
+      return
+    }
+
     setIsAnalyzing(true)
     setErrorMessage('')
 
@@ -136,7 +170,7 @@ function App() {
     }
   }
 
-  async function updateFinding(finding, replacementText = getSuggestionText(finding)) {
+  async function updateFinding(finding, replacementText = getSuggestionText(finding), actionOverride = finding?.action) {
     if (!finding) return
     if (!scanData?.scanId) {
       setErrorMessage('문서를 먼저 분석해 주세요.')
@@ -152,7 +186,7 @@ function App() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: finding.action,
+            action: actionOverride,
             replacementText,
             resolved: true,
           }),
@@ -169,6 +203,7 @@ function App() {
           item.findingId === finding.findingId
             ? {
                 ...item,
+                action: actionOverride,
                 replacementText: payload.data.replacementText ?? replacementText,
                 resolved: payload.data.resolved ?? true,
               }
@@ -202,7 +237,7 @@ function App() {
       }
 
       const blob = await response.blob()
-      downloadBlob(blob, `maskit-safe-copy.${safeFormat}`)
+      downloadBlob(blob, getDownloadFilename(response, `maskit-safe-copy.${safeFormat}`))
     } catch (error) {
       setErrorMessage(error.message || '안전 사본 생성에 실패했습니다.')
     } finally {
@@ -220,12 +255,19 @@ function App() {
     }
 
     try {
-      await fetch(`${API_BASE_URL}/scans/${scanData.scanId}`, { method: 'DELETE' })
-    } finally {
+      const response = await fetch(`${API_BASE_URL}/scans/${scanData.scanId}`, { method: 'DELETE' })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok || payload?.success === false) {
+        throw new Error(getErrorMessage(payload, '작업 삭제에 실패했습니다.'))
+      }
+
       setScanData(null)
       setFindings([])
       setSelectedFindingId(null)
       setActiveStep('upload')
+    } catch (error) {
+      setErrorMessage(error.message || '작업 삭제에 실패했습니다.')
     }
   }
 
@@ -280,6 +322,7 @@ function App() {
             findings={findings}
             selectedIssue={selectedIssue}
             setSelectedFindingId={setSelectedFindingId}
+            setActiveStep={setActiveStep}
             text={scanData?.extractedText ?? ''}
             updateFinding={updateFinding}
           />
@@ -294,6 +337,7 @@ function App() {
             scanData={scanData}
           />
         )}
+        {activeStep === 'monitoring' && <MonitoringScreen />}
       </section>
     </main>
   )
@@ -355,7 +399,10 @@ function UploadScreen({
             className="file-input"
             type="file"
             accept=".pdf,.docx,.hwpx,.txt,.png,.jpg,.jpeg"
-            onChange={(event) => onAnalyze(event.target.files?.[0])}
+            onChange={(event) => {
+              onAnalyze(event.target.files?.[0])
+              event.target.value = ''
+            }}
           />
           <button
             className="primary-button"
@@ -432,6 +479,9 @@ function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
           <button className="primary-button" type="button" onClick={() => setActiveStep('fix')}>
             수정 가이드 보기
           </button>
+          <button className="ghost-button" type="button" onClick={() => setActiveStep('save')}>
+            안전본 저장으로 이동
+          </button>
         </div>
       </section>
 
@@ -443,12 +493,15 @@ function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
   )
 }
 
-function FixScreen({ findings, selectedIssue, setSelectedFindingId, text, updateFinding }) {
+function FixScreen({ findings, selectedIssue, setActiveStep, setSelectedFindingId, text, updateFinding }) {
   if (!selectedIssue) {
     return (
       <section className="complete-panel">
         <h2>수정할 항목이 없습니다.</h2>
         <p>문서를 먼저 분석하면 수정 가이드가 표시됩니다.</p>
+        <button className="primary-button" type="button" onClick={() => setActiveStep('save')}>
+          안전본 저장으로 이동
+        </button>
       </section>
     )
   }
@@ -459,6 +512,9 @@ function FixScreen({ findings, selectedIssue, setSelectedFindingId, text, update
         <div className="viewer-toolbar">
           <button className="primary-button" type="button" onClick={() => updateFinding(selectedIssue)}>
             수정 반영
+          </button>
+          <button className="ghost-button" type="button" onClick={() => setActiveStep('save')}>
+            안전본 저장
           </button>
         </div>
         <article className="paper text-preview">
@@ -490,20 +546,109 @@ function FixScreen({ findings, selectedIssue, setSelectedFindingId, text, update
           <span className="status-pill danger">{selectedIssue.label}</span>
           <h2>{selectedIssue.suggestion || '직접 검토 필요'}</h2>
           <p>{selectedIssue.reason}</p>
-          <div className="button-row compact">
-            <button
-              className="primary-button"
-              type="button"
-              onClick={() => updateFinding(selectedIssue, getSuggestionText(selectedIssue))}
-            >
-              수정 반영
-            </button>
-            <button className="ghost-button" type="button" onClick={() => updateFinding(selectedIssue, '')}>
-              삭제로 반영
-            </button>
-          </div>
+          <ReplacementEditor
+            key={selectedIssue.findingId}
+            selectedIssue={selectedIssue}
+            updateFinding={updateFinding}
+          />
         </div>
       </aside>
+    </div>
+  )
+}
+
+function ReplacementEditor({ selectedIssue, updateFinding }) {
+  const [customText, setCustomText] = useState(selectedIssue.replacementText ?? getSuggestionText(selectedIssue))
+
+  return (
+    <>
+      <label className="custom-replacement">
+        직접 수정 문구
+        <textarea
+          value={customText}
+          onChange={(event) => setCustomText(event.target.value)}
+          placeholder="수정본에 반영할 문구를 입력하세요."
+          rows={4}
+        />
+      </label>
+      <div className="button-row compact">
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => updateFinding(selectedIssue, getSuggestionText(selectedIssue))}
+        >
+          수정 반영
+        </button>
+        <button
+          className="ghost-button"
+          type="button"
+          onClick={() => updateFinding(selectedIssue, customText, 'replace')}
+        >
+          직접 수정 반영
+        </button>
+        <button className="ghost-button" type="button" onClick={() => updateFinding(selectedIssue, '', 'delete')}>
+          삭제로 반영
+        </button>
+      </div>
+    </>
+  )
+}
+
+function MonitoringScreen() {
+  return (
+    <div className="screen-grid">
+      <section className="wide-panel full-span">
+        <PanelTitle title="모니터링" action="정적 콘텐츠" />
+        <div className="monitoring-grid">
+          <article className="metric-card">
+            <span>원본 보관</span>
+            <strong>24h</strong>
+            <small>만료 후 자동 삭제 권장</small>
+          </article>
+          <article className="metric-card">
+            <span>업로드 제한</span>
+            <strong>20MB</strong>
+            <small>프론트 사전 검증 적용</small>
+          </article>
+          <article className="metric-card">
+            <span>안전 사본</span>
+            <strong>Stream</strong>
+            <small>서버 파일 저장 없이 다운로드</small>
+          </article>
+        </div>
+      </section>
+
+      <section className="wide-panel">
+        <PanelTitle title="점검 기준" />
+        <div className="issue-list">
+          <article className="issue-card">
+            <span>개인정보 보호</span>
+            <strong>연락처, 이메일, 식별번호</strong>
+            <p>개인 식별 가능성이 있는 문구를 탐지하고 마스킹 또는 대체를 권장합니다.</p>
+          </article>
+          <article className="issue-card">
+            <span>블라인드 채용</span>
+            <strong>학교명, 출신지, 가족관계</strong>
+            <p>평가 편향을 만들 수 있는 표현을 발견하면 대체 문구를 제안합니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className="wide-panel">
+        <PanelTitle title="API 상태 기준" />
+        <div className="issue-list">
+          <article className="issue-card">
+            <span>동기 분석</span>
+            <strong>POST /api/v1/scans</strong>
+            <p>상태 폴링 없이 업로드 응답에서 결과와 원문 텍스트를 함께 받습니다.</p>
+          </article>
+          <article className="issue-card">
+            <span>작업 삭제</span>
+            <strong>DELETE /api/v1/scans/:scanId</strong>
+            <p>사용자가 원할 때 원본과 분석 결과 삭제를 즉시 요청합니다.</p>
+          </article>
+        </div>
+      </section>
     </div>
   )
 }

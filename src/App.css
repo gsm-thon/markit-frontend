@@ -376,6 +376,19 @@ select {
   font-weight: 700;
 }
 
+textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  color: var(--navy);
+  background: var(--white);
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 .full-span {
   grid-column: 1 / -1;
 }
@@ -408,7 +421,8 @@ select {
 
 .issue-list,
 .finding-list,
-.faq-grid {
+.faq-grid,
+.monitoring-grid {
   display: grid;
   gap: 14px;
 }
@@ -543,6 +557,18 @@ mark {
   font-size: 24px;
 }
 
+.custom-replacement {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  color: var(--navy);
+  font-weight: 900;
+}
+
+.monitoring-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .complete-panel {
   min-height: 540px;
   display: grid;
@@ -609,7 +635,8 @@ mark {
   .screen-grid,
   .review-layout,
   .metric-row,
-  .faq-grid {
+  .faq-grid,
+  .monitoring-grid {
     grid-template-columns: 1fr;
   }
 
