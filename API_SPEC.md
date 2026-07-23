@@ -1,15 +1,11 @@
 # Maskit Front API 정합성 메모
 
-첨부받은 운영 API 기준으로 현재 프론트에서 사용할 수 있는 API만 남겼습니다.
-
-- 운영 백엔드: `http://gsm-yj-alb-1671676139.us-west-1.elb.amazonaws.com`
-- Vercel 프론트에서는 mixed content 방지를 위해 `/health`, `/api/v1/*` rewrite를 통해 호출합니다.
+서버 레포 `gsm-thon/markit-server`의 `main` 브랜치(`9b72cce`) 기준으로 현재 프론트에서 사용할 수 있는 API만 남겼습니다.
 
 ## 현재 서버와 맞는 API
 
 | 상태 | Method | Endpoint | 프론트 사용 위치 |
 | --- | --- | --- | --- |
-| 사용 | `GET` | `/health` | 서버 상태 확인 |
 | 사용 | `POST` | `/api/v1/scans` | 문서 업로드 및 즉시 분석 |
 | 사용 | `PATCH` | `/api/v1/scans/{scanId}/findings/{findingId}` | 탐지 항목 수정/삭제 반영 |
 | 사용 | `POST` | `/api/v1/scans/{scanId}/safe-copy` | `pdf`, `docx`, `txt` 안전 사본 다운로드 |
@@ -27,6 +23,6 @@
 
 - API 클라이언트는 `src/api.js`에 모았습니다.
 - 기본 Base URL은 `/api/v1`입니다.
-- 개발 서버에서는 `vite.config.js`가 `/health`, `/api/v1` 요청을 `http://localhost:3000` 백엔드로 프록시합니다.
-- 현재 Vercel 배포(`https://maskit-rho.vercel.app`)에서는 `vercel.json`이 `/health`, `/api/v1/*` 요청을 AWS ALB 백엔드로 rewrite합니다.
+- 개발 서버에서는 `vite.config.js`가 `/api/v1` 요청을 `http://localhost:3000` 백엔드로 프록시합니다.
+- 현재 Vercel 배포(`https://maskit-rho.vercel.app`)에서는 `vercel.json`이 `/api/v1/*` 요청을 AWS ALB 백엔드로 rewrite합니다.
 - 다른 서버 주소를 직접 쓰려면 `.env` 또는 배포 환경변수에 `VITE_API_BASE_URL=https://.../api/v1` 형식으로 지정하면 됩니다.
