@@ -458,7 +458,7 @@ function FixScreen({ findings, selectedIssue, setSelectedFindingId, text, update
       <section className="document-viewer" aria-label="문서 수정 미리보기">
         <div className="viewer-toolbar">
           <button className="primary-button" type="button" onClick={() => updateFinding(selectedIssue)}>
-            수정 완료
+            수정 반영
           </button>
         </div>
         <article className="paper text-preview">
@@ -496,10 +496,10 @@ function FixScreen({ findings, selectedIssue, setSelectedFindingId, text, update
               type="button"
               onClick={() => updateFinding(selectedIssue, getSuggestionText(selectedIssue))}
             >
-              추천안 적용
+              수정 반영
             </button>
             <button className="ghost-button" type="button" onClick={() => updateFinding(selectedIssue, '')}>
-              삭제 처리
+              삭제로 반영
             </button>
           </div>
         </div>
