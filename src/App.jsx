@@ -36,6 +36,13 @@ function applyLocalReplacement(finding) {
   return '[마스킹]'
 }
 
+function getSuggestionText(finding) {
+  if (!finding) return ''
+  if (typeof finding.suggestion === 'string' && finding.suggestion.trim()) return finding.suggestion
+  if (finding.action === 'delete') return ''
+  return '[마스킹]'
+}
+
 function renderMarkedText(text, findings, useReplacement = false) {
   if (!text) return <p className="empty-text">분석된 텍스트가 아직 없습니다.</p>
 
@@ -129,7 +136,7 @@ function App() {
     }
   }
 
-  async function updateFinding(finding, replacementText = finding.suggestion || '') {
+  async function updateFinding(finding, replacementText = getSuggestionText(finding)) {
     if (!finding) return
     if (!scanData?.scanId) {
       setErrorMessage('문서를 먼저 분석해 주세요.')
@@ -162,8 +169,8 @@ function App() {
           item.findingId === finding.findingId
             ? {
                 ...item,
-                replacementText: payload.data.replacementText,
-                resolved: payload.data.resolved,
+                replacementText: payload.data.replacementText ?? replacementText,
+                resolved: payload.data.resolved ?? true,
               }
             : item,
         ),
@@ -484,7 +491,11 @@ function FixScreen({ findings, selectedIssue, setSelectedFindingId, text, update
           <h2>{selectedIssue.suggestion || '직접 검토 필요'}</h2>
           <p>{selectedIssue.reason}</p>
           <div className="button-row compact">
-            <button className="primary-button" type="button" onClick={() => updateFinding(selectedIssue)}>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => updateFinding(selectedIssue, getSuggestionText(selectedIssue))}
+            >
               추천안 적용
             </button>
             <button className="ghost-button" type="button" onClick={() => updateFinding(selectedIssue, '')}>
