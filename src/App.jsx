@@ -11,7 +11,6 @@ const steps = [
   { id: 'scan', label: '사전 점검' },
   { id: 'fix', label: '수정 가이드' },
   { id: 'save', label: '저장 완료' },
-  { id: 'help', label: '도움말' },
 ]
 
 const featureCards = [
@@ -19,64 +18,6 @@ const featureCards = [
   ['위험 표현 탐지', '문맥상 위험한 표현까지 AI가 탐지하여 경고합니다.'],
   ['안전한 처리', '원문 미보관, 처리 후 자동 삭제. 데이터는 서버에 남지 않습니다.'],
 ]
-
-const sampleFindings = [
-  {
-    findingId: 'sample_001',
-    type: 'school_name',
-    label: '학교명',
-    originalText: '한국대학교 컴퓨터공학과',
-    reason: '블라인드 채용에서는 학교명이 평가에 영향을 줄 수 있습니다.',
-    severity: 'high',
-    action: 'replace',
-    suggestion: '컴퓨터공학 관련 전공',
-    page: 1,
-    startOffset: 3,
-    endOffset: 16,
-    resolved: false,
-    replacementText: null,
-  },
-  {
-    findingId: 'sample_002',
-    type: 'family',
-    label: '가족 정보',
-    originalText: '아버지가 자동차 회사에서 근무',
-    reason: '가족의 직업이나 배경은 직무 역량과 무관한 개인정보입니다.',
-    severity: 'medium',
-    action: 'delete',
-    suggestion: '해당 문장 삭제',
-    page: 1,
-    startOffset: 74,
-    endOffset: 90,
-    resolved: false,
-    replacementText: null,
-  },
-  {
-    findingId: 'sample_003',
-    type: 'phone',
-    label: '연락처',
-    originalText: '010-2844-9132',
-    reason: '안전본을 만들 때 연락처는 자동으로 가려집니다.',
-    severity: 'low',
-    action: 'mask',
-    suggestion: '자동 마스킹',
-    page: 1,
-    startOffset: 106,
-    endOffset: 119,
-    resolved: true,
-    replacementText: null,
-  },
-]
-
-const sampleScan = {
-  scanId: '',
-  fileName: 'sample_resume.txt',
-  mode: 'blind_hiring',
-  extractedText:
-    '저는 한국대학교 컴퓨터공학과에서 개발을 공부하며 팀 프로젝트를 수행했습니다. 아버지가 자동차 회사에서 근무한 경험을 보며 제조 도메인에 관심을 갖게 되었습니다. 연락처는 010-2844-9132입니다.',
-  summary: { needsFix: 2, autoMasked: 1, passed: 18 },
-  findings: sampleFindings,
-}
 
 function getErrorMessage(payload, fallback) {
   return payload?.error?.message || fallback
@@ -151,10 +92,6 @@ function App() {
     [findings, selectedFindingId],
   )
 
-  const currentSummary = scanData?.summary ?? sampleScan.summary
-  const currentText = scanData?.extractedText ?? sampleScan.extractedText
-  const displayFindings = findings.length ? findings : sampleFindings
-
   async function handleAnalyze(file) {
     if (!file) return
     if (!agreed) {
@@ -192,25 +129,10 @@ function App() {
     }
   }
 
-  function loadSample() {
-    setScanData(sampleScan)
-    setFindings(sampleScan.findings)
-    setSelectedFindingId(sampleScan.findings[0]?.findingId ?? null)
-    setErrorMessage('')
-    setActiveStep('scan')
-  }
-
   async function updateFinding(finding, replacementText = finding.suggestion || '') {
     if (!finding) return
-
-    if (!scanData?.scanId || finding.findingId.startsWith('sample_')) {
-      setFindings((items) =>
-        items.map((item) =>
-          item.findingId === finding.findingId
-            ? { ...item, replacementText, resolved: true, action: finding.action }
-            : item,
-        ),
-      )
+    if (!scanData?.scanId) {
+      setErrorMessage('문서를 먼저 분석해 주세요.')
       return
     }
 
@@ -252,9 +174,8 @@ function App() {
   }
 
   async function downloadSafeCopy() {
-    if (!scanData?.scanId || scanData.scanId === sampleScan.scanId) {
-      const content = renderPlainSafeText(currentText, displayFindings)
-      downloadBlob(new Blob([content], { type: 'text/plain;charset=utf-8' }), 'maskit-safe-copy.txt')
+    if (!scanData?.scanId) {
+      setErrorMessage('문서를 먼저 분석해 주세요.')
       return
     }
 
@@ -336,24 +257,23 @@ function App() {
             setAgreed={setAgreed}
             setScanMode={setScanMode}
             onAnalyze={handleAnalyze}
-            onLoadSample={loadSample}
           />
         )}
         {activeStep === 'scan' && (
           <ScanScreen
-            findings={displayFindings}
+            findings={findings}
             scanData={scanData}
-            summary={currentSummary}
-            text={currentText}
+            summary={scanData?.summary}
+            text={scanData?.extractedText ?? ''}
             setActiveStep={setActiveStep}
           />
         )}
         {activeStep === 'fix' && (
           <FixScreen
-            findings={displayFindings}
+            findings={findings}
             selectedIssue={selectedIssue}
             setSelectedFindingId={setSelectedFindingId}
-            text={currentText}
+            text={scanData?.extractedText ?? ''}
             updateFinding={updateFinding}
           />
         )}
@@ -367,7 +287,6 @@ function App() {
             scanData={scanData}
           />
         )}
-        {activeStep === 'help' && <HelpScreen />}
       </section>
     </main>
   )
@@ -414,7 +333,6 @@ function UploadScreen({
   setAgreed,
   setScanMode,
   onAnalyze,
-  onLoadSample,
 }) {
   const fileInputRef = useRef(null)
 
@@ -432,19 +350,14 @@ function UploadScreen({
             accept=".pdf,.docx,.hwpx,.txt,.png,.jpg,.jpeg"
             onChange={(event) => onAnalyze(event.target.files?.[0])}
           />
-          <div className="button-row">
-            <button
-              className="primary-button"
-              type="button"
-              disabled={isAnalyzing}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {isAnalyzing ? '분석 중...' : '파일 선택'}
-            </button>
-            <button className="ghost-button" type="button" disabled={isAnalyzing} onClick={onLoadSample}>
-              샘플로 보기
-            </button>
-          </div>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={isAnalyzing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {isAnalyzing ? '분석 중...' : '파일 선택'}
+          </button>
         </div>
 
         <div className="panel">
@@ -472,15 +385,27 @@ function UploadScreen({
 }
 
 function ScanScreen({ findings, scanData, summary, text, setActiveStep }) {
+  if (!scanData) {
+    return (
+      <section className="complete-panel">
+        <h2>분석된 문서가 없습니다.</h2>
+        <p>문서를 업로드하면 백엔드 분석 결과가 이 화면에 표시됩니다.</p>
+        <button className="primary-button" type="button" onClick={() => setActiveStep('upload')}>
+          문서 분석으로 이동
+        </button>
+      </section>
+    )
+  }
+
   return (
     <div className="screen-grid">
       <section className="wide-panel full-span">
-        <PanelTitle title="점검 결과 요약" action={scanData ? modeLabel(scanData.mode) : '샘플 결과'} />
+        <PanelTitle title="점검 결과 요약" action={modeLabel(scanData.mode)} />
         <div className="metric-row">
-          <Metric label="수정 필요" value={`${summary.needsFix}건`} delta="확인 필요 항목" />
-          <Metric label="자동 마스킹" value={`${summary.autoMasked}건`} delta="연락처, 이메일 등" />
-          <Metric label="통과 항목" value={`${summary.passed}건`} delta="문제 없음" />
-          <Metric label="탐지 항목" value={`${findings.length}건`} delta={scanData?.fileName ?? '샘플 문서'} />
+          <Metric label="수정 필요" value={`${summary?.needsFix ?? 0}건`} delta="확인 필요 항목" />
+          <Metric label="자동 마스킹" value={`${summary?.autoMasked ?? 0}건`} delta="연락처, 이메일 등" />
+          <Metric label="통과 항목" value={`${summary?.passed ?? 0}건`} delta="문제 없음" />
+          <Metric label="탐지 항목" value={`${findings.length}건`} delta={scanData.fileName} />
         </div>
       </section>
 
@@ -525,12 +450,6 @@ function FixScreen({ findings, selectedIssue, setSelectedFindingId, text, update
     <div className="review-layout">
       <section className="document-viewer" aria-label="문서 수정 미리보기">
         <div className="viewer-toolbar">
-          <button className="ghost-button" type="button">
-            원문 보기
-          </button>
-          <button className="ghost-button" type="button">
-            안전본 보기
-          </button>
           <button className="primary-button" type="button" onClick={() => updateFinding(selectedIssue)}>
             수정 완료
           </button>
@@ -545,7 +464,7 @@ function FixScreen({ findings, selectedIssue, setSelectedFindingId, text, update
       </section>
 
       <aside className="review-panel">
-        <PanelTitle title="수정할 항목" action="전체 적용" />
+        <PanelTitle title="수정할 항목" />
         <div className="finding-list">
           {findings.map((issue) => (
             <button
@@ -607,29 +526,6 @@ function SaveScreen({ deleteScan, downloadSafeCopy, isSaving, safeFormat, setSaf
   )
 }
 
-function HelpScreen() {
-  const help = [
-    ['회원가입이 필요한가요?', '아니요. 검사 링크만 있으면 문서를 점검하고 안전본을 저장할 수 있습니다.'],
-    ['분석은 어떻게 처리되나요?', '파일 업로드와 동시에 서버가 텍스트를 추출하고 분석 결과를 한 번에 반환합니다.'],
-    ['원본도 같이 저장되나요?', '아니요. 안전 사본은 즉시 스트리밍되고 서버에 별도 파일로 남기지 않습니다.'],
-    ['저장한 뒤에는 어떻게 하나요?', '다운로드한 안전본을 사용자가 원하는 채용 사이트, 이메일, 폼에 직접 올리면 됩니다.'],
-  ]
-
-  return (
-    <section className="wide-panel">
-      <PanelTitle title="자주 묻는 질문" />
-      <div className="faq-grid">
-        {help.map(([question, answer]) => (
-          <article className="feature-card" key={question}>
-            <h3>{question}</h3>
-            <p>{answer}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  )
-}
-
 function Metric({ label, value, delta }) {
   return (
     <article className="metric-card">
@@ -653,22 +549,6 @@ function severityLabel(severity) {
   if (severity === 'high') return '높음'
   if (severity === 'medium') return '중간'
   return '낮음'
-}
-
-function renderPlainSafeText(text, findings) {
-  let output = ''
-  let cursor = 0
-  const sorted = [...findings].sort((a, b) => a.startOffset - b.startOffset)
-
-  sorted.forEach((finding) => {
-    if (finding.startOffset < cursor) return
-    output += text.slice(cursor, finding.startOffset)
-    output += applyLocalReplacement(finding)
-    cursor = finding.endOffset
-  })
-
-  output += text.slice(cursor)
-  return output
 }
 
 export default App
