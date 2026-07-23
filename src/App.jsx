@@ -696,14 +696,6 @@ function ReplacementEditor({ isUpdating, selectedIssue, updateFinding }) {
       </label>
       <div className="button-row compact">
         <button
-          className="ghost-button"
-          type="button"
-          disabled={isUpdating}
-          onClick={() => updateFinding(selectedIssue, customText, customText ? 'replace' : 'delete')}
-        >
-          추천안 반영
-        </button>
-        <button
           className="primary-button"
           type="button"
           disabled={isUpdating}
