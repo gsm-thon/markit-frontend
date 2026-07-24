@@ -69,13 +69,13 @@ Vercel 배포 환경에서는 `vercel.json`의 rewrite 설정을 통해 백엔�
 | 항목 수정 반영 | `PATCH /api/v1/scans/{scanId}/findings/{findingId}` |
 | 작업 삭제 | `DELETE /api/v1/scans/{scanId}` |
 
-현재 안전본 저장은 백엔드 `safe-copy` API를 사용하지 않고, 프론트에서 수정 내용을 조립해 TXT 파일로 즉시 다운로드합니다.
+안전본 저장은 백엔드 `safe-copy` API를 사용합니다. 서버 다운로드가 실패하는 경우에는 프론트에서 수정 내용을 조립해 TXT 파일로 fallback 저장합니다.
 
 ## 저장 방식
 
-분석 응답의 `extractedText`와 `findings`를 프론트 상태에 보관합니다. 사용자가 수정하거나 삭제로 반영하면 해당 finding의 `replacementText`가 업데이트되고, 저장 시 브라우저에서 직접 안전본 TXT를 생성합니다.
+분석 응답의 `scanId`, `extractedText`, `findings`를 프론트 상태에 보관합니다. 사용자가 수정하거나 삭제로 반영하면 `PATCH /api/v1/scans/{scanId}/findings/{findingId}`로 서버에 반영하고, 저장 시 `POST /api/v1/scans/{scanId}/safe-copy`로 안전본 파일을 다운로드합니다.
 
-파일명은 다음 형식으로 저장됩니다.
+서버 저장이 실패할 경우에는 브라우저에서 다음 형식의 TXT 안전본을 생성합니다.
 
 ```text
 원본파일명-safe-copy.txt
@@ -85,14 +85,7 @@ Vercel 배포 환경에서는 `vercel.json`의 rewrite 설정을 통해 백엔�
 
 ## 알려진 백엔드 이슈
 
-배포된 백엔드가 여러 인스턴스로 동작하는 상황에서 `scanId` 세션이 인스턴스 로컬 메모리에 저장되는 것으로 보입니다. 같은 `scanId`로 후속 요청을 보내도 ALB가 다른 인스턴스로 라우팅하면 `SCAN_NOT_FOUND`가 발생할 수 있습니다.
-
-권장 해결책:
-
-- Redis, DB, S3 등 공유 저장소에 scan 세션과 findings 저장
-- 임시 완화책으로 ALB sticky session 활성화
-
-또한 AI/NER 기반 탐지 항목은 같은 문구가 여러 번 반복되어도 첫 번째 위치만 반환되는 케이스가 확인되었습니다. 백엔드에서 NER 결과의 `originalText`를 원문 전체에 대해 재탐색해 모든 offset을 finding으로 펼치는 후처리가 필요합니다.
+AI/NER 기반 탐지 항목은 같은 문구가 여러 번 반복되어도 첫 번째 위치만 반환되는 케이스가 확인되었습니다. 백엔드에서 NER 결과의 `originalText`를 원문 전체에 대해 재탐색해 모든 offset을 finding으로 펼치는 후처리가 필요합니다.
 
 ## 배포
 
